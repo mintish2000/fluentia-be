@@ -17,6 +17,12 @@ enum Environment {
   Test = 'test',
 }
 
+const RAILWAY_PRODUCTION_URL = 'https://web-production-a2b41.up.railway.app';
+
+function normalizeBaseUrl(value: string): string {
+  return value.endsWith('/') ? value.slice(0, -1) : value;
+}
+
 class EnvironmentVariablesValidator {
   @IsEnum(Environment)
   @IsOptional()
@@ -52,16 +58,26 @@ class EnvironmentVariablesValidator {
 export default registerAs<AppConfig>('app', () => {
   validateConfig(process.env, EnvironmentVariablesValidator);
 
+  const nodeEnv = process.env.NODE_ENV || 'development';
+  const isProduction = nodeEnv === Environment.Production;
+  const productionBaseUrl = normalizeBaseUrl(RAILWAY_PRODUCTION_URL);
+  const frontendDomain =
+    process.env.FRONTEND_DOMAIN ??
+    (isProduction ? productionBaseUrl : 'http://localhost:3000');
+  const backendDomain =
+    process.env.BACKEND_DOMAIN ??
+    (isProduction ? productionBaseUrl : 'http://localhost');
+
   return {
-    nodeEnv: process.env.NODE_ENV || 'development',
+    nodeEnv,
     name: process.env.APP_NAME || 'app',
     workingDirectory: process.env.PWD || process.cwd(),
-    frontendDomain: process.env.FRONTEND_DOMAIN,
-    backendDomain: process.env.BACKEND_DOMAIN ?? 'http://localhost',
-    port: process.env.APP_PORT
-      ? parseInt(process.env.APP_PORT, 10)
-      : process.env.PORT
-        ? parseInt(process.env.PORT, 10)
+    frontendDomain,
+    backendDomain,
+    port: process.env.PORT
+      ? parseInt(process.env.PORT, 10)
+      : process.env.APP_PORT
+        ? parseInt(process.env.APP_PORT, 10)
         : 3000,
     apiPrefix: process.env.API_PREFIX || 'api',
     fallbackLanguage: process.env.APP_FALLBACK_LANGUAGE || 'en',
