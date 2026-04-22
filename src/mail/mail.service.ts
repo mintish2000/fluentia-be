@@ -32,7 +32,7 @@ export class MailService {
     }
 
     const url = new URL(
-      this.configService.getOrThrow('app.frontendDomain', {
+      this.configService.getOrThrow('app.backendDomain', {
         infer: true,
       }) + '/confirm-email',
     );
@@ -84,7 +84,7 @@ export class MailService {
     }
 
     const url = new URL(
-      this.configService.getOrThrow('app.frontendDomain', {
+      this.configService.getOrThrow('app.backendDomain', {
         infer: true,
       }) + '/password-change',
     );
@@ -136,7 +136,7 @@ export class MailService {
     }
 
     const url = new URL(
-      this.configService.getOrThrow('app.frontendDomain', {
+      this.configService.getOrThrow('app.backendDomain', {
         infer: true,
       }) + '/confirm-new-email',
     );
