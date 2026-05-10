@@ -166,24 +166,28 @@ export class UsersService {
 
   async update(
     id: User['id'],
-    updateUserDto: UpdateUserDto | User,
+    /**
+     * `shift` is accepted here for admin/student roster flows only — not on `PATCH /users/:id`
+     * (see `UpdateUserDto`).
+     */
+    updateUserDto: UpdateUserDto | User | { shift?: User['shift'] },
   ): Promise<User | null> {
     // Do not remove comment below.
     // <updating-property />
 
+    const patch = updateUserDto as Partial<User> & Partial<UpdateUserDto>;
+
     let password: string | undefined = undefined;
 
-    if (updateUserDto.password) {
+    if (patch.password) {
       const salt = await bcrypt.genSalt();
-      password = await bcrypt.hash(updateUserDto.password, salt);
+      password = await bcrypt.hash(patch.password, salt);
     }
 
     let email: string | null | undefined = undefined;
 
-    if (updateUserDto.email) {
-      const userObject = await this.usersRepository.findByEmail(
-        updateUserDto.email,
-      );
+    if (patch.email) {
+      const userObject = await this.usersRepository.findByEmail(patch.email);
 
       if (userObject && userObject.id !== id) {
         throw new UnprocessableEntityException({
@@ -194,17 +198,15 @@ export class UsersService {
         });
       }
 
-      email = updateUserDto.email;
-    } else if (updateUserDto.email === null) {
+      email = patch.email;
+    } else if (patch.email === null) {
       email = null;
     }
 
     let photo: FileType | null | undefined = undefined;
 
-    if (updateUserDto.photo?.id) {
-      const fileObject = await this.filesService.findById(
-        updateUserDto.photo.id,
-      );
+    if (patch.photo?.id) {
+      const fileObject = await this.filesService.findById(patch.photo.id);
       if (!fileObject) {
         throw new UnprocessableEntityException({
           status: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -214,16 +216,16 @@ export class UsersService {
         });
       }
       photo = fileObject;
-    } else if (updateUserDto.photo === null) {
+    } else if (patch.photo === null) {
       photo = null;
     }
 
     let role: Role | undefined = undefined;
 
-    if (updateUserDto.role?.id) {
+    if (patch.role?.id) {
       const roleObject = Object.values(RoleEnum)
         .map(String)
-        .includes(String(updateUserDto.role.id));
+        .includes(String(patch.role.id));
       if (!roleObject) {
         throw new UnprocessableEntityException({
           status: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -234,16 +236,16 @@ export class UsersService {
       }
 
       role = {
-        id: updateUserDto.role.id,
+        id: patch.role.id,
       };
     }
 
     let status: Status | undefined = undefined;
 
-    if (updateUserDto.status?.id) {
+    if (patch.status?.id) {
       const statusObject = Object.values(StatusEnum)
         .map(String)
-        .includes(String(updateUserDto.status.id));
+        .includes(String(patch.status.id));
       if (!statusObject) {
         throw new UnprocessableEntityException({
           status: HttpStatus.UNPROCESSABLE_ENTITY,
@@ -254,41 +256,37 @@ export class UsersService {
       }
 
       status = {
-        id: updateUserDto.status.id,
+        id: patch.status.id,
       };
     }
 
     let group: User['group'] | undefined = undefined;
-    if ('groupId' in updateUserDto && updateUserDto.groupId !== undefined) {
-      const raw = normalizeStoredGroupId(updateUserDto.groupId);
+    if ('groupId' in patch && patch.groupId !== undefined) {
+      const raw = normalizeStoredGroupId(patch.groupId);
       group = raw ? { id: raw } : null;
     }
 
     return this.usersRepository.update(id, {
       // Do not remove comment below.
       // <updating-property-payload />
-      firstName: updateUserDto.firstName,
-      lastName: updateUserDto.lastName,
+      firstName: patch.firstName,
+      lastName: patch.lastName,
       email,
       password,
       photo,
       role,
       status,
-      ...('groupId' in updateUserDto && updateUserDto.groupId !== undefined
-        ? { group }
+      ...('groupId' in patch && patch.groupId !== undefined ? { group } : {}),
+      ...('adminNotes' in patch && patch.adminNotes !== undefined
+        ? { adminNotes: patch.adminNotes }
         : {}),
-      ...('adminNotes' in updateUserDto &&
-      updateUserDto.adminNotes !== undefined
-        ? { adminNotes: updateUserDto.adminNotes }
+      ...('nextPaymentDate' in patch && patch.nextPaymentDate !== undefined
+        ? { nextPaymentDate: patch.nextPaymentDate }
         : {}),
-      ...('nextPaymentDate' in updateUserDto &&
-      updateUserDto.nextPaymentDate !== undefined
-        ? { nextPaymentDate: updateUserDto.nextPaymentDate }
+      ...('nextPaymentAmount' in patch && patch.nextPaymentAmount !== undefined
+        ? { nextPaymentAmount: patch.nextPaymentAmount }
         : {}),
-      ...('nextPaymentAmount' in updateUserDto &&
-      updateUserDto.nextPaymentAmount !== undefined
-        ? { nextPaymentAmount: updateUserDto.nextPaymentAmount }
-        : {}),
+      ...(patch.shift !== undefined ? { shift: patch.shift } : {}),
     });
   }
 

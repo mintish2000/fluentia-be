@@ -18,6 +18,7 @@ import {
   toQuestionPublicId,
   toStudentPublicId,
 } from './utils/admin-public-ids.util';
+import { ShiftEnum } from '../users/enums/shift.enum';
 /**
  * Admin student roster (`/admin/students`) mapped to Fluentia wire shapes.
  */
@@ -112,7 +113,38 @@ export class AdminStudentsService {
       nextPaymentDate: full.nextPaymentDate,
       nextPaymentAmount: full.nextPaymentAmount,
       nextPaymentCurrency,
+      shift: row.shift ?? ShiftEnum.morning,
     };
+  }
+
+  /**
+   * Updates shift for the authenticated student (self-service).
+   * @param userId Numeric user id from JWT.
+   * @param shift New shift value.
+   * @returns Persisted shift after update.
+   */
+  async patchMyShift(
+    userId: number,
+    shift: ShiftEnum,
+  ): Promise<{ shift: ShiftEnum }> {
+    const row = await this.usersRepository.findOne({
+      where: { id: userId, role: { id: RoleEnum.student } },
+    });
+    if (!row) {
+      throw new NotFoundException({
+        error: {
+          code: 'NOT_FOUND',
+          message: 'Student not found',
+          details: [],
+        },
+      });
+    }
+    await this.usersService.update(userId, { shift });
+    const next = await this.usersRepository.findOne({
+      where: { id: userId },
+      select: ['id', 'shift'],
+    });
+    return { shift: next?.shift ?? ShiftEnum.morning };
   }
 
   /**
@@ -201,6 +233,7 @@ export class AdminStudentsService {
       nextPaymentDate: string | null;
       nextPaymentAmount: number | null;
       password: string;
+      shift: ShiftEnum;
     }>,
   ) {
     const id = parseStudentPublicId(studentPublicId);
@@ -239,6 +272,7 @@ export class AdminStudentsService {
           ? null
           : undefined,
       nextPaymentAmount: body.nextPaymentAmount,
+      ...(body.shift !== undefined ? { shift: body.shift } : {}),
     });
     const next = await this.usersRepository.findOne({
       where: { id },
@@ -311,6 +345,7 @@ export class AdminStudentsService {
         ? row.nextPaymentDate.toISOString()
         : null,
       nextPaymentAmount: row.nextPaymentAmount ?? null,
+      shift: row.shift ?? ShiftEnum.morning,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
     };

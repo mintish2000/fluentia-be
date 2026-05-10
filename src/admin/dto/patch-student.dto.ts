@@ -1,12 +1,14 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsEmail,
+  IsEnum,
   IsIn,
   IsNumber,
   IsOptional,
   IsString,
   MinLength,
 } from 'class-validator';
+import { ShiftEnum } from '../../users/enums/shift.enum';
 
 export class PatchStudentDto {
   @ApiPropertyOptional()
@@ -56,4 +58,9 @@ export class PatchStudentDto {
   @IsString()
   @MinLength(6)
   password?: string;
+
+  @ApiPropertyOptional({ enum: ShiftEnum, enumName: 'ShiftEnum' })
+  @IsOptional()
+  @IsEnum(ShiftEnum)
+  shift?: ShiftEnum;
 }

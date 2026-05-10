@@ -3,6 +3,7 @@ import { FileType } from '../../files/domain/file';
 import { Role } from '../../roles/domain/role';
 import { Status } from '../../statuses/domain/status';
 import { ApiProperty } from '@nestjs/swagger';
+import { ShiftEnum } from '../enums/shift.enum';
 
 const idType = Number;
 
@@ -65,12 +66,15 @@ export class User {
   @ApiProperty({ nullable: true })
   nextPaymentAmount?: number | null;
 
-  @ApiProperty()
-  createdAt: Date;
+  @ApiProperty({ enum: ShiftEnum, enumName: 'ShiftEnum', nullable: true })
+  shift?: ShiftEnum | null;
 
   @ApiProperty()
-  updatedAt: Date;
+  createdAt!: Date;
 
   @ApiProperty()
-  deletedAt: Date;
+  updatedAt!: Date;
+
+  @ApiProperty()
+  deletedAt?: Date | null;
 }

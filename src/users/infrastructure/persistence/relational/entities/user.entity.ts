@@ -16,6 +16,7 @@ import { FileEntity } from '../../../../../files/infrastructure/persistence/rela
 import { StudentGroupEntity } from '../../../../../student-groups/infrastructure/persistence/relational/entities/student-group.entity';
 
 import { EntityRelationalHelper } from '../../../../../utils/relational-entity-helper';
+import { ShiftEnum } from '../../../../../users/enums/shift.enum';
 
 @Entity({
   name: 'user',
@@ -72,12 +73,20 @@ export class UserEntity extends EntityRelationalHelper {
   @Column({ type: 'double precision', nullable: true })
   nextPaymentAmount?: number | null;
 
+  @Column({
+    type: 'enum',
+    enum: ShiftEnum,
+    default: ShiftEnum.morning,
+    nullable: true,
+  })
+  shift?: ShiftEnum | null;
+
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt!: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt!: Date;
 
   @DeleteDateColumn()
-  deletedAt: Date;
+  deletedAt?: Date | null;
 }

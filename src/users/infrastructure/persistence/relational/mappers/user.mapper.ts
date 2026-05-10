@@ -31,9 +31,10 @@ export class UserMapper {
     domainEntity.adminNotes = raw.adminNotes;
     domainEntity.nextPaymentDate = raw.nextPaymentDate;
     domainEntity.nextPaymentAmount = raw.nextPaymentAmount;
+    domainEntity.shift = raw.shift;
     domainEntity.createdAt = raw.createdAt;
     domainEntity.updatedAt = raw.updatedAt;
-    domainEntity.deletedAt = raw.deletedAt;
+    domainEntity.deletedAt = raw.deletedAt ?? undefined;
     return domainEntity;
   }
 
@@ -91,8 +92,9 @@ export class UserMapper {
     persistenceEntity.adminNotes = domainEntity.adminNotes;
     persistenceEntity.nextPaymentDate = domainEntity.nextPaymentDate;
     persistenceEntity.nextPaymentAmount = domainEntity.nextPaymentAmount;
-    persistenceEntity.createdAt = domainEntity.createdAt;
-    persistenceEntity.updatedAt = domainEntity.updatedAt;
+    persistenceEntity.shift = domainEntity.shift;
+    persistenceEntity.createdAt = domainEntity.createdAt ?? new Date();
+    persistenceEntity.updatedAt = domainEntity.updatedAt ?? new Date();
     persistenceEntity.deletedAt = domainEntity.deletedAt;
     return persistenceEntity;
   }
