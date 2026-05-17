@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class DropLegacyElearningTables1775006000000
-  implements MigrationInterface
-{
+export class DropLegacyElearningTables1775006000000 implements MigrationInterface {
   name = 'DropLegacyElearningTables1775006000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

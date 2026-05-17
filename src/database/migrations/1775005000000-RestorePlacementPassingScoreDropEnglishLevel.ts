@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class RestorePlacementPassingScoreDropEnglishLevel1775005000000
-  implements MigrationInterface
-{
+export class RestorePlacementPassingScoreDropEnglishLevel1775005000000 implements MigrationInterface {
   name = 'RestorePlacementPassingScoreDropEnglishLevel1775005000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
