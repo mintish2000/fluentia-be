@@ -1,4 +1,5 @@
 {
+  "status": "active",
   "placementCompleted": true,
   "placement": {
     "score": 84,
@@ -30,5 +31,6 @@
   ],
   "nextPaymentDate": "2026-05-02T09:00:00.000Z",
   "nextPaymentAmount": 120,
-  "nextPaymentCurrency": "USD"
+  "nextPaymentCurrency": "USD",
+  "shift": "morning"
 }

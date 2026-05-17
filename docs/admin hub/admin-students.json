@@ -49,6 +49,7 @@
       ],
       "nextPaymentDate": "2026-05-02T09:00:00.000Z",
       "nextPaymentAmount": 120,
+      "shift": "morning",
       "createdAt": "2026-01-10T10:00:00.000Z",
       "updatedAt": "2026-04-08T14:00:00.000Z"
     },
@@ -85,6 +86,7 @@
       ],
       "nextPaymentDate": "2026-05-01T09:00:00.000Z",
       "nextPaymentAmount": 90,
+      "shift": "evening",
       "createdAt": "2026-02-01T10:00:00.000Z",
       "updatedAt": "2026-04-01T12:00:00.000Z"
     }

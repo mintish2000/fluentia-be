@@ -1,0 +1,99 @@
+{
+  "dashboard": {
+    "meta": {
+      "title": "Learning overview",
+      "subtitle": "Snapshot for coaching and placement operations",
+      "generatedAt": "2026-05-17T10:00:00.000Z"
+    },
+    "kpis": {
+      "totalStudents": 48,
+      "activeStudents": 36,
+      "inactiveStudents": 12,
+      "totalGroups": 4,
+      "averagePlacementScore": 72.5,
+      "expectedMonthlyRevenueUsd": 5420
+    },
+    "studentsByGroup": [
+      { "groupId": "g_001", "groupName": "Morning Advanced", "count": 18, "color": "#0b3a66" },
+      { "groupId": "g_002", "groupName": "Evening Foundations", "count": 14, "color": "#0d6b4d" },
+      { "groupId": "g_003", "groupName": "Weekend Intensive", "count": 9, "color": "#a61b1b" },
+      { "groupId": "g_004", "groupName": "Exam Prep", "count": 5, "color": "#6b4d0d" }
+    ],
+    "studentsByStatus": [
+      { "status": "active", "label": "Active", "count": 36, "color": "#0d6b4d" },
+      { "status": "inactive", "label": "Inactive", "count": 12, "color": "#a61b1b" }
+    ],
+    "placementScoreDistribution": [
+      { "label": "0–40%", "count": 4 },
+      { "label": "40–60%", "count": 10 },
+      { "label": "60–80%", "count": 22 },
+      { "label": "80–100%", "count": 12 }
+    ],
+    "revenueByMonth": [
+      { "month": "2026-05", "label": "May", "amountUsd": 5420 }
+    ]
+  },
+  "students": {
+    "meta": { "adminDisplayName": "Loay Admin" },
+    "students": [
+      {
+        "id": "s_001",
+        "firstName": "Lina",
+        "lastName": "Khaled",
+        "email": "lina.khaled@example.com",
+        "status": "active",
+        "groupId": "g_001",
+        "notes": "Needs confidence in speaking tasks. Strong grammar progress.",
+        "placement": {
+          "score": 84,
+          "totalQuestions": 50,
+          "correctAnswers": 42,
+          "submittedAt": "2026-04-05T08:30:00.000Z",
+          "mistakes": []
+        },
+        "payments": [
+          { "id": "p_001", "amount": 120, "currency": "USD", "paidAt": "2026-03-02T09:00:00.000Z", "status": "paid" }
+        ],
+        "nextPaymentDate": "2026-05-02T09:00:00.000Z",
+        "nextPaymentAmount": 120,
+        "shift": "morning",
+        "createdAt": "2026-01-10T10:00:00.000Z",
+        "updatedAt": "2026-04-08T14:00:00.000Z"
+      }
+    ]
+  },
+  "groups": {
+    "groups": [
+      {
+        "id": "g_001",
+        "name": "Morning Advanced",
+        "description": "Weekday morning cohort for B2+ learners. Focus on fluency and exam prep.",
+        "link": "https://example.com/groups/morning-advanced"
+      }
+    ]
+  },
+  "placement": {
+    "placementId": "placement-054c9db7-36ac-4c98-ae69-66a47aab6929",
+    "title": "Placement Test",
+    "examDurationMinutes": 50,
+    "description": "Placement test loaded from database",
+    "courseTitle": "Placement Course",
+    "courseLevel": "all",
+    "questions": [
+      {
+        "id": "q_001",
+        "type": "single",
+        "prompt": "Choose the correct sentence.",
+        "options": [
+          "She go to school every day.",
+          "She goes to school every day.",
+          "She going to school every day.",
+          "She gone to school every day."
+        ],
+        "correctAnswer": "She goes to school every day.",
+        "createdAt": "2026-04-01T09:00:00.000Z",
+        "updatedAt": "2026-04-01T09:00:00.000Z"
+      }
+    ]
+  }
+}
