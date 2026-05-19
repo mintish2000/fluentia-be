@@ -1,6 +1,7 @@
 import { randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { StudentAnswerRepository } from '../student-answers/infrastructure/persistence/student-answer.repository';
+import { StudentAnswer } from '../student-answers/domain/student-answer';
 import { SubmitPlacementAnswersDto } from './dto/submit-placement-answers.dto';
 import { SubmitPlacementResponseDto } from './dto/submit-placement-response.dto';
 import {
@@ -266,6 +267,8 @@ export class PlacementService {
     let correctAnswers = 0;
     const results: SubmitPlacementResponseDto['answers'] = [];
     const submittedAt = new Date();
+    const toInsert: Omit<StudentAnswer, 'id' | 'createdAt' | 'updatedAt'>[] =
+      [];
 
     for (const submittedAnswer of submitDto.answers) {
       const question = questionsById.get(submittedAnswer.questionId);
@@ -298,13 +301,15 @@ export class PlacementService {
         correctAnswers += 1;
       }
 
-      await this.studentAnswerRepository.create({
+      toInsert.push({
         answer: submittedAnswer.answer,
         isCorrect,
         submittedAt,
         placement,
+        placementId: placement.id,
         questionId: question.id,
         student,
+        studentId: Number(student.id),
       });
 
       results.push({
@@ -312,6 +317,8 @@ export class PlacementService {
         isCorrect,
       });
     }
+
+    await this.studentAnswerRepository.createMany(toInsert);
 
     const answeredQuestions = submitDto.answers.length;
     const score = answeredQuestions

@@ -14,6 +14,7 @@ import {
 } from 'typeorm';
 import { EntityRelationalHelper } from '../../../../../utils/relational-entity-helper';
 
+@Index('idx_student_answer_placement_student', ['placementId', 'studentId'])
 @Entity({
   name: 'student_answer',
 })
@@ -37,7 +38,7 @@ export class StudentAnswerEntity extends EntityRelationalHelper {
   answer: string;
 
   @Index()
-  @Column({ nullable: false, type: 'uuid', insert: false, update: false })
+  @Column({ nullable: false, type: 'uuid' })
   placementId: string;
 
   @ManyToOne(() => PlacementEntity, { eager: false, nullable: false })
@@ -51,7 +52,7 @@ export class StudentAnswerEntity extends EntityRelationalHelper {
   questionId: string;
 
   @Index()
-  @Column({ nullable: false, type: 'integer', insert: false, update: false })
+  @Column({ nullable: false, type: 'integer' })
   studentId: number;
 
   @ManyToOne(() => UserEntity, { eager: false, nullable: false })

@@ -47,6 +47,8 @@ export class StudentAnswerMapper {
         domainEntity.placement,
       );
     }
+    persistenceEntity.placementId =
+      domainEntity.placementId ?? domainEntity.placement?.id;
 
     persistenceEntity.questionId = domainEntity.questionId;
 
@@ -54,6 +56,10 @@ export class StudentAnswerMapper {
       persistenceEntity.student = UserMapper.toPersistence(
         domainEntity.student,
       );
+    }
+    const studentId = domainEntity.studentId ?? domainEntity.student?.id;
+    if (studentId !== undefined && studentId !== null) {
+      persistenceEntity.studentId = Number(studentId);
     }
 
     if (domainEntity.id) {

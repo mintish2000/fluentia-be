@@ -23,6 +23,14 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
     return StudentAnswerMapper.toDomain(newEntity);
   }
 
+  async createMany(data: StudentAnswer[]): Promise<StudentAnswer[]> {
+    const persistenceModels = data.map((d) =>
+      this.studentAnswerRepository.create(StudentAnswerMapper.toPersistence(d)),
+    );
+    const saved = await this.studentAnswerRepository.save(persistenceModels);
+    return saved.map((e) => StudentAnswerMapper.toDomain(e));
+  }
+
   async findAllWithPagination({
     paginationOptions,
   }: {

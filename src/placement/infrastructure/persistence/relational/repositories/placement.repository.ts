@@ -10,6 +10,11 @@ import { IPaginationOptions } from '../../../../../utils/types/pagination-option
 
 @Injectable()
 export class PlacementRelationalRepository implements PlacementRepository {
+  /** In-memory cache for the placement test row (TTL: 5 minutes). */
+  private _placementTestCache: { data: Placement; expiresAt: number } | null =
+    null;
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000;
+
   constructor(
     @InjectRepository(PlacementEntity)
     private readonly placementRepository: Repository<PlacementEntity>,
@@ -50,6 +55,13 @@ export class PlacementRelationalRepository implements PlacementRepository {
   }
 
   async findPlacementTest(): Promise<NullableType<Placement>> {
+    if (
+      this._placementTestCache &&
+      Date.now() < this._placementTestCache.expiresAt
+    ) {
+      return this._placementTestCache.data;
+    }
+
     const entity = await this.placementRepository
       .createQueryBuilder('placement')
       .where('LOWER(placement.title) = :exactTitle', {
@@ -61,7 +73,14 @@ export class PlacementRelationalRepository implements PlacementRepository {
       .orderBy('placement.createdAt', 'DESC')
       .getOne();
 
-    return entity ? PlacementMapper.toDomain(entity) : null;
+    const result = entity ? PlacementMapper.toDomain(entity) : null;
+    if (result) {
+      this._placementTestCache = {
+        data: result,
+        expiresAt: Date.now() + this.CACHE_TTL_MS,
+      };
+    }
+    return result;
   }
 
   async findByIds(ids: Placement['id'][]): Promise<Placement[]> {
@@ -91,10 +110,12 @@ export class PlacementRelationalRepository implements PlacementRepository {
       PlacementMapper.toPersistence(merged),
     );
 
+    this._placementTestCache = null;
     return PlacementMapper.toDomain(updatedEntity);
   }
 
   async remove(id: Placement['id']): Promise<void> {
     await this.placementRepository.delete(id);
+    this._placementTestCache = null;
   }
 }
