@@ -38,7 +38,7 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
 
   async findByPlacementId(placementId: string): Promise<StudentAnswer[]> {
     const entities = await this.studentAnswerRepository.find({
-      where: { placement: { id: placementId } },
+      where: { placementId } as any,
       /** Avoid eager placement+user graphs (N× heavy JOINs per row). */
       loadEagerRelations: false,
     });
@@ -51,11 +51,46 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
     studentId: number,
   ): Promise<StudentAnswer[]> {
     const entities = await this.studentAnswerRepository.find({
-      where: { placement: { id: placementId }, student: { id: studentId } },
+      where: { placementId, studentId } as any,
       loadEagerRelations: false,
     });
 
     return entities.map((entity) => StudentAnswerMapper.toDomain(entity));
+  }
+
+  async findByPlacementIdAndStudentIds(
+    placementId: string,
+    studentIds: number[],
+  ): Promise<StudentAnswer[]> {
+    if (!studentIds.length) return [];
+    const entities = await this.studentAnswerRepository.find({
+      where: { placementId, studentId: In(studentIds) } as any,
+      loadEagerRelations: false,
+    });
+
+    return entities.map((entity) => StudentAnswerMapper.toDomain(entity));
+  }
+
+  async getPlacementScoreSummary(
+    placementId: string,
+  ): Promise<Array<{ studentId: number; total: number; correct: number }>> {
+    const rows = await this.studentAnswerRepository
+      .createQueryBuilder('sa')
+      .select('sa.studentId', 'studentId')
+      .addSelect('COUNT(*)', 'total')
+      .addSelect(
+        'SUM(CASE WHEN sa.isCorrect = true THEN 1 ELSE 0 END)',
+        'correct',
+      )
+      .where('sa.placementId = :placementId', { placementId })
+      .groupBy('sa.studentId')
+      .getRawMany<{ studentId: string; total: string; correct: string }>();
+
+    return rows.map((r) => ({
+      studentId: Number(r.studentId),
+      total: Number(r.total),
+      correct: Number(r.correct),
+    }));
   }
 
   async getAttemptSummaryByPlacementIdAndStudentId(

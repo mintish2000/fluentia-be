@@ -18,12 +18,14 @@ export class StudentAnswerMapper {
     if (raw.placement) {
       domainEntity.placement = PlacementMapper.toDomain(raw.placement);
     }
+    domainEntity.placementId = raw.placementId;
 
     domainEntity.questionId = raw.questionId;
 
     if (raw.student) {
       domainEntity.student = UserMapper.toDomain(raw.student);
     }
+    domainEntity.studentId = raw.studentId;
 
     domainEntity.id = raw.id;
     domainEntity.createdAt = raw.createdAt;

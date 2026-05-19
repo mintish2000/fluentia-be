@@ -7,6 +7,8 @@ import {
   UpdateDateColumn,
   ManyToOne,
   Column,
+  Index,
+  JoinColumn,
 } from 'typeorm';
 import { EntityRelationalHelper } from '../../../../../utils/relational-entity-helper';
 
@@ -30,29 +32,37 @@ export class PaymentEntity extends EntityRelationalHelper {
     nullable: false,
     type: String,
   })
-  status: string;
+  status!: string;
 
   @Column({
     nullable: false,
     type: String,
   })
-  currency: string;
+  currency!: string;
 
   @Column({
     nullable: false,
     type: Number,
   })
-  amount: number;
+  amount!: number;
 
-  @ManyToOne(() => UserEntity, { eager: true, nullable: false })
-  student: UserEntity;
+  @Column({ nullable: true, type: String })
+  planKey?: string | null;
+
+  @Index()
+  @Column({ nullable: false, type: 'integer' })
+  studentId!: number;
+
+  @ManyToOne(() => UserEntity, { eager: false, nullable: false })
+  @JoinColumn({ name: 'studentId' })
+  student!: UserEntity;
 
   @PrimaryGeneratedColumn('uuid')
-  id: string;
+  id!: string;
 
   @CreateDateColumn()
-  createdAt: Date;
+  createdAt?: Date;
 
   @UpdateDateColumn()
-  updatedAt: Date;
+  updatedAt?: Date;
 }

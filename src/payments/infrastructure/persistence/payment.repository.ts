@@ -18,6 +18,10 @@ export abstract class PaymentRepository {
 
   abstract findByIds(ids: Payment['id'][]): Promise<Payment[]>;
 
+  abstract findByProviderReference(
+    providerReference: string,
+  ): Promise<NullableType<Payment>>;
+
   abstract findByStudentId(
     studentId: number,
     paginationOptions: IPaginationOptions,
@@ -27,6 +31,19 @@ export abstract class PaymentRepository {
    * All payments for a student (admin roster / profile).
    */
   abstract findAllByStudentId(studentId: number): Promise<Payment[]>;
+
+  /**
+   * Batch variant: all payments for multiple students in a single query.
+   * Returned payments include `studentId` raw FK for grouping.
+   */
+  abstract findAllByStudentIds(studentIds: number[]): Promise<Payment[]>;
+
+  /**
+   * Revenue aggregated by month (YYYY-MM) — avoids loading every payment row.
+   */
+  abstract getRevenueGroupedByMonth(): Promise<
+    Array<{ month: string; totalAmount: number }>
+  >;
 
   abstract update(
     id: Payment['id'],

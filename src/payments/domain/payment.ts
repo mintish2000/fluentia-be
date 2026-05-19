@@ -18,34 +18,43 @@ export class Payment {
     type: () => String,
     nullable: false,
   })
-  status: string;
+  status!: string;
 
   @ApiProperty({
     type: () => String,
     nullable: false,
   })
-  currency: string;
+  currency!: string;
 
   @ApiProperty({
     type: () => Number,
     nullable: false,
   })
-  amount: number;
+  amount!: number;
 
   @ApiProperty({
     type: () => User,
     nullable: false,
   })
-  student: User;
+  student!: User;
+
+  /** Raw FK value — populated by batch queries that skip relation loading. */
+  studentId?: number;
+
+  @ApiProperty({
+    type: String,
+    nullable: true,
+  })
+  planKey?: string | null;
 
   @ApiProperty({
     type: String,
   })
-  id: string;
+  id!: string;
 
   @ApiProperty()
-  createdAt: Date;
+  createdAt!: Date;
 
   @ApiProperty()
-  updatedAt: Date;
+  updatedAt!: Date;
 }

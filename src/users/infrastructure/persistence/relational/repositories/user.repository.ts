@@ -1,4 +1,9 @@
-import { Injectable } from '@nestjs/common';
+import {
+  Injectable,
+  HttpStatus,
+  NotFoundException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
 import { FindOptionsWhere, Repository, In } from 'typeorm';
@@ -22,12 +27,27 @@ export class UsersRelationalRepository implements UserRepository {
 
   async create(data: User): Promise<User> {
     const persistenceModel = UserMapper.toPersistence(data);
-    const newEntity = await this.usersRepository.save(
-      this.usersRepository.create(persistenceModel),
-    );
+    let newEntity: UserEntity;
+    try {
+      newEntity = await this.usersRepository.save(
+        this.usersRepository.create(persistenceModel),
+      );
+    } catch (err: unknown) {
+      const pgErr = err as { code?: string };
+      if (pgErr?.code === '23505') {
+        throw new UnprocessableEntityException({
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          errors: { email: 'emailAlreadyExists' },
+        });
+      }
+      throw err;
+    }
     const reloaded = await this.findById(newEntity.id);
     if (!reloaded) {
-      throw new Error('User not found after create');
+      throw new NotFoundException({
+        status: HttpStatus.NOT_FOUND,
+        error: 'notFound',
+      });
     }
     return reloaded;
   }
@@ -101,21 +121,39 @@ export class UsersRelationalRepository implements UserRepository {
     });
 
     if (!entity) {
-      throw new Error('User not found');
+      throw new NotFoundException({
+        status: HttpStatus.NOT_FOUND,
+        error: 'notFound',
+      });
     }
 
-    const updatedEntity = await this.usersRepository.save(
-      this.usersRepository.create(
-        UserMapper.toPersistence({
-          ...UserMapper.toDomain(entity),
-          ...payload,
-        }),
-      ),
-    );
+    let updatedEntity: UserEntity;
+    try {
+      updatedEntity = await this.usersRepository.save(
+        this.usersRepository.create(
+          UserMapper.toPersistence({
+            ...UserMapper.toDomain(entity),
+            ...payload,
+          }),
+        ),
+      );
+    } catch (err: unknown) {
+      const pgErr = err as { code?: string };
+      if (pgErr?.code === '23505') {
+        throw new UnprocessableEntityException({
+          status: HttpStatus.UNPROCESSABLE_ENTITY,
+          errors: { email: 'emailAlreadyExists' },
+        });
+      }
+      throw err;
+    }
 
     const reloaded = await this.findById(updatedEntity.id);
     if (!reloaded) {
-      throw new Error('User not found after update');
+      throw new NotFoundException({
+        status: HttpStatus.NOT_FOUND,
+        error: 'notFound',
+      });
     }
     return reloaded;
   }

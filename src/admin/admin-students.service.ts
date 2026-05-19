@@ -8,8 +8,12 @@ import { Repository } from 'typeorm';
 import { UserEntity } from '../users/infrastructure/persistence/relational/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { PaymentsService } from '../payments/payments.service';
+import { PaymentRepository } from '../payments/infrastructure/persistence/payment.repository';
 import { PlacementService } from '../placement/placement.service';
 import { StudentAnswerRepository } from '../student-answers/infrastructure/persistence/student-answer.repository';
+import { StudentAnswer } from '../student-answers/domain/student-answer';
+import { Payment } from '../payments/domain/payment';
+import { PlacementQuestion } from '../placement/domain/placement-question';
 import { RoleEnum } from '../roles/roles.enum';
 import { StatusEnum } from '../statuses/statuses.enum';
 import {
@@ -29,32 +33,78 @@ export class AdminStudentsService {
     private readonly usersRepository: Repository<UserEntity>,
     private readonly usersService: UsersService,
     private readonly paymentsService: PaymentsService,
+    private readonly paymentRepository: PaymentRepository,
     private readonly placementService: PlacementService,
     private readonly studentAnswerRepository: StudentAnswerRepository,
   ) {}
 
   /**
    * Lists students with hub meta for the signed-in admin.
+   * Batches all DB queries to avoid the O(3N) N+1 pattern.
    */
   async listStudents(adminUserId: number) {
-    /** Lean read: full `findById` eager-loads photo/role/status/group and repeats heavy JOINs. */
-    const adminUser = await this.usersRepository.findOne({
-      where: { id: adminUserId },
-      select: ['id', 'firstName', 'lastName', 'email'],
-      loadEagerRelations: false,
-    });
-    const rows = await this.usersRepository.find({
-      where: { role: { id: RoleEnum.student } },
-      relations: ['status', 'group'],
-      order: { lastName: 'ASC', firstName: 'ASC' },
-    });
-    const activePlacement = await this.placementService.findPlacementTest();
-    const students: unknown[] = [];
-    for (const row of rows) {
-      students.push(
-        await this.mapStudentEntity(row, activePlacement?.id ?? null),
-      );
+    const [adminUser, rows, activePlacement] = await Promise.all([
+      this.usersRepository.findOne({
+        where: { id: adminUserId },
+        select: ['id', 'firstName', 'lastName', 'email'],
+        loadEagerRelations: false,
+      }),
+      this.usersRepository.find({
+        where: { role: { id: RoleEnum.student } },
+        relations: ['status', 'group'],
+        order: { lastName: 'ASC', firstName: 'ASC' },
+      }),
+      this.placementService.findPlacementTest(),
+    ]);
+
+    const studentNumericIds = rows.map((r) => r.id);
+
+    const [allAnswers, allPayments, placementDetails] = await Promise.all([
+      activePlacement && studentNumericIds.length
+        ? this.studentAnswerRepository.findByPlacementIdAndStudentIds(
+            activePlacement.id,
+            studentNumericIds,
+          )
+        : Promise.resolve([] as StudentAnswer[]),
+      studentNumericIds.length
+        ? this.paymentRepository.findAllByStudentIds(studentNumericIds)
+        : Promise.resolve([] as Payment[]),
+      activePlacement
+        ? this.placementService.findById(activePlacement.id)
+        : Promise.resolve(null),
+    ]);
+
+    // Group by student ID for O(1) per-student lookups
+    const answersByStudent = new Map<number, StudentAnswer[]>();
+    for (const a of allAnswers) {
+      const sid = a.studentId;
+      if (!sid) continue;
+      if (!answersByStudent.has(sid)) answersByStudent.set(sid, []);
+      answersByStudent.get(sid)!.push(a);
     }
+
+    const paymentsByStudent = new Map<number, Payment[]>();
+    for (const p of allPayments) {
+      const sid = p.studentId;
+      if (!sid) continue;
+      if (!paymentsByStudent.has(sid)) paymentsByStudent.set(sid, []);
+      paymentsByStudent.get(sid)!.push(p);
+    }
+
+    const qMap = new Map<string, PlacementQuestion>(
+      (placementDetails?.questions ?? []).map((q) => [q.id, q]),
+    );
+
+    const students = rows.map((row) =>
+      this.mapStudentEntityBatch(
+        row,
+        activePlacement?.id ?? null,
+        answersByStudent.get(row.id) ?? [],
+        paymentsByStudent.get(row.id) ?? [],
+        qMap,
+      ),
+    );
+
     return {
       meta: {
         adminDisplayName:
@@ -300,6 +350,92 @@ export class AdminStudentsService {
     await this.usersService.remove(id);
   }
 
+  /** Synchronous mapping used by listStudents — all data is pre-fetched in batch. */
+  private mapStudentEntityBatch(
+    row: UserEntity,
+    activePlacementId: string | null,
+    answers: StudentAnswer[],
+    payments: Payment[],
+    qMap: Map<string, PlacementQuestion>,
+  ) {
+    const studentId = toStudentPublicId(row.id);
+    const status =
+      Number(row.status?.id) === StatusEnum.inactive ? 'inactive' : 'active';
+
+    const placement =
+      activePlacementId && answers.length
+        ? this.computePlacementSummaryFromData(answers, qMap)
+        : {
+            score: 0,
+            totalQuestions: 0,
+            correctAnswers: 0,
+            submittedAt: null as string | null,
+            mistakes: [] as Array<{
+              questionId: string;
+              questionPrompt: string;
+              studentAnswer: string;
+              correctAnswer: string;
+            }>,
+          };
+
+    return {
+      id: studentId,
+      firstName: row.firstName ?? '',
+      lastName: row.lastName ?? '',
+      email: row.email ?? '',
+      status,
+      groupId: row.group?.id ? toGroupPublicId(row.group.id) : null,
+      notes: row.adminNotes ?? '',
+      placement,
+      payments: payments.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        currency: p.currency,
+        paidAt: p.paidAt ? p.paidAt.toISOString() : null,
+        status: p.status,
+        planKey: p.planKey ?? null,
+      })),
+      nextPaymentDate: row.nextPaymentDate
+        ? row.nextPaymentDate.toISOString()
+        : null,
+      nextPaymentAmount: row.nextPaymentAmount ?? null,
+      shift: row.shift ?? ShiftEnum.morning,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  /** Computes placement summary from pre-fetched answer list (no DB calls). */
+  private computePlacementSummaryFromData(
+    answers: StudentAnswer[],
+    qMap: Map<string, PlacementQuestion>,
+  ) {
+    const submittedAt = answers[0]?.submittedAt;
+    const total = answers.length;
+    const correctAnswers = answers.filter((a) => a.isCorrect).length;
+    const score = total ? Math.round((correctAnswers / total) * 100) : 0;
+
+    const mistakes = answers
+      .filter((a) => !a.isCorrect)
+      .map((a) => {
+        const q = qMap.get(a.questionId);
+        return {
+          questionId: q?.id ? toQuestionPublicId(q.id) : '',
+          questionPrompt: q?.prompt ?? '',
+          studentAnswer: a.answer,
+          correctAnswer: q?.correctAnswer ?? '',
+        };
+      });
+
+    return {
+      score,
+      totalQuestions: total,
+      correctAnswers,
+      submittedAt: submittedAt ? submittedAt.toISOString() : null,
+      mistakes,
+    };
+  }
+
   private async mapStudentEntity(
     row: UserEntity,
     activePlacementId: string | null,
@@ -340,6 +476,7 @@ export class AdminStudentsService {
         currency: p.currency,
         paidAt: p.paidAt ? p.paidAt.toISOString() : null,
         status: p.status,
+        planKey: p.planKey ?? null,
       })),
       nextPaymentDate: row.nextPaymentDate
         ? row.nextPaymentDate.toISOString()

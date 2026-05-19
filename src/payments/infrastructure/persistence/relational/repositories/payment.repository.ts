@@ -52,12 +52,22 @@ export class PaymentRelationalRepository implements PaymentRepository {
     return entities.map((entity) => PaymentMapper.toDomain(entity));
   }
 
+  async findByProviderReference(
+    providerReference: string,
+  ): Promise<Payment | null> {
+    const entity = await this.paymentRepository.findOne({
+      where: { providerReference },
+      loadEagerRelations: false,
+    });
+    return entity ? PaymentMapper.toDomain(entity) : null;
+  }
+
   async findByStudentId(
     studentId: number,
     paginationOptions: IPaginationOptions,
   ): Promise<Payment[]> {
     const entities = await this.paymentRepository.find({
-      where: { student: { id: studentId } },
+      where: { studentId } as any,
       skip: (paginationOptions.page - 1) * paginationOptions.limit,
       take: paginationOptions.limit,
       order: {
@@ -72,12 +82,41 @@ export class PaymentRelationalRepository implements PaymentRepository {
 
   async findAllByStudentId(studentId: number): Promise<Payment[]> {
     const entities = await this.paymentRepository.find({
-      where: { student: { id: studentId } },
+      where: { studentId } as any,
       order: { paidAt: 'DESC', createdAt: 'DESC' },
       loadEagerRelations: false,
     });
 
     return entities.map((entity) => PaymentMapper.toDomain(entity));
+  }
+
+  async findAllByStudentIds(studentIds: number[]): Promise<Payment[]> {
+    if (!studentIds.length) return [];
+    const entities = await this.paymentRepository.find({
+      where: { studentId: In(studentIds) } as any,
+      order: { paidAt: 'DESC', createdAt: 'DESC' },
+      loadEagerRelations: false,
+    });
+
+    return entities.map((entity) => PaymentMapper.toDomain(entity));
+  }
+
+  async getRevenueGroupedByMonth(): Promise<
+    Array<{ month: string; totalAmount: number }>
+  > {
+    const rows = await this.paymentRepository
+      .createQueryBuilder('p')
+      .select("TO_CHAR(p.paidAt, 'YYYY-MM')", 'month')
+      .addSelect('SUM(p.amount)', 'totalAmount')
+      .where('p.paidAt IS NOT NULL')
+      .groupBy("TO_CHAR(p.paidAt, 'YYYY-MM')")
+      .orderBy('month', 'ASC')
+      .getRawMany<{ month: string; totalAmount: string }>();
+
+    return rows.map((r) => ({
+      month: r.month,
+      totalAmount: Number(r.totalAmount),
+    }));
   }
 
   async update(id: Payment['id'], payload: Partial<Payment>): Promise<Payment> {

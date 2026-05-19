@@ -67,8 +67,17 @@ export class PaymentsService {
       status: string;
       paidAt?: Date | null;
       providerReference?: string | null;
+      planKey?: string | null;
     },
   ): Promise<Payment> {
+    // Idempotency: return existing payment if same provider reference was already recorded
+    if (data.providerReference) {
+      const existing = await this.paymentRepository.findByProviderReference(
+        data.providerReference,
+      );
+      if (existing) return existing;
+    }
+
     const studentObject = await this.userService.findById(studentId);
     if (!studentObject) {
       throw new UnprocessableEntityException({
@@ -86,6 +95,7 @@ export class PaymentsService {
       providerReference: data.providerReference ?? null,
       status: data.status,
       paidAt: data.paidAt ?? new Date(),
+      planKey: data.planKey ?? null,
     });
 
     await this.activateStudentIfPaymentSucceeded(

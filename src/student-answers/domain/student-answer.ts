@@ -38,6 +38,12 @@ export class StudentAnswer {
   })
   student: User;
 
+  /** Raw FK value — populated by batch queries that skip relation loading. */
+  studentId?: number;
+
+  /** Raw FK value — populated by batch queries that skip relation loading. */
+  placementId?: string;
+
   @ApiProperty({
     type: String,
   })

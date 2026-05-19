@@ -21,6 +21,22 @@ export abstract class StudentAnswerRepository {
     studentId: number,
   ): Promise<StudentAnswer[]>;
 
+  /**
+   * Batch variant: fetches answers for multiple students in a single query.
+   * Returned answers include `studentId` raw FK (no relation load needed).
+   */
+  abstract findByPlacementIdAndStudentIds(
+    placementId: string,
+    studentIds: number[],
+  ): Promise<StudentAnswer[]>;
+
+  /**
+   * Aggregate per-student score summary (single GROUP BY query, avoids loading all answer rows).
+   */
+  abstract getPlacementScoreSummary(
+    placementId: string,
+  ): Promise<Array<{ studentId: number; total: number; correct: number }>>;
+
   abstract getAttemptSummaryByPlacementIdAndStudentId(
     placementId: string,
     studentId: number,

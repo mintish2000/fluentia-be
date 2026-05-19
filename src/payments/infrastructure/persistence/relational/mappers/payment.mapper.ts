@@ -20,10 +20,12 @@ export class PaymentMapper {
     if (raw.student) {
       domainEntity.student = UserMapper.toDomain(raw.student);
     }
+    domainEntity.studentId = raw.studentId;
+    domainEntity.planKey = raw.planKey ?? null;
 
     domainEntity.id = raw.id;
-    domainEntity.createdAt = raw.createdAt;
-    domainEntity.updatedAt = raw.updatedAt;
+    domainEntity.createdAt = raw.createdAt ?? new Date();
+    domainEntity.updatedAt = raw.updatedAt ?? new Date();
 
     return domainEntity;
   }
@@ -41,10 +43,11 @@ export class PaymentMapper {
     persistenceEntity.amount = domainEntity.amount;
 
     if (domainEntity.student) {
-      persistenceEntity.student = UserMapper.toPersistence(
-        domainEntity.student,
-      );
+      persistenceEntity.studentId = Number(domainEntity.student.id);
+    } else if (domainEntity.studentId) {
+      persistenceEntity.studentId = domainEntity.studentId;
     }
+    persistenceEntity.planKey = domainEntity.planKey ?? null;
 
     if (domainEntity.id) {
       persistenceEntity.id = domainEntity.id;

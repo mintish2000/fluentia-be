@@ -57,34 +57,14 @@ export class AdminDashboardService {
     ];
 
     if (activePlacement) {
-      const answers = await this.studentAnswerRepository.findByPlacementId(
-        activePlacement.id,
-      );
-      const byStudent = new Map<number, typeof answers>();
-      for (const a of answers) {
-        const sid = Number(a.student?.id);
-        if (!Number.isFinite(sid)) {
-          continue;
-        }
-        if (!byStudent.has(sid)) {
-          byStudent.set(sid, []);
-        }
-        byStudent.get(sid)!.push(a);
-      }
-      const scores: number[] = [];
-      for (const [, list] of byStudent) {
-        const submittedAt = list[0]?.submittedAt;
-        if (!submittedAt) {
-          continue;
-        }
-        const sameAttempt = list.filter(
-          (x) =>
-            x.submittedAt &&
-            Math.abs(x.submittedAt.getTime() - submittedAt.getTime()) < 2000,
+      const scoreSummary =
+        await this.studentAnswerRepository.getPlacementScoreSummary(
+          activePlacement.id,
         );
-        const total = sameAttempt.length;
-        const correct = sameAttempt.filter((x) => x.isCorrect).length;
-        const score = total ? Math.round((correct / total) * 100) : 0;
+      const scores: number[] = [];
+      for (const { total, correct } of scoreSummary) {
+        if (!total) continue;
+        const score = Math.round((correct / total) * 100);
         scores.push(score);
         if (score < 40) {
           placementScoreBuckets[0].count += 1;
@@ -154,18 +134,10 @@ export class AdminDashboardService {
       'Dec',
     ];
 
-    const allPayments = await this.paymentRepository.findAllWithPagination({
-      paginationOptions: { page: 1, limit: 10000 },
-    });
-    const revenueByMonthMap = new Map<string, number>();
-    for (const p of allPayments) {
-      if (!p.paidAt) {
-        continue;
-      }
-      const d = new Date(p.paidAt);
-      const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
-      revenueByMonthMap.set(key, (revenueByMonthMap.get(key) ?? 0) + p.amount);
-    }
+    const revenueRows = await this.paymentRepository.getRevenueGroupedByMonth();
+    const revenueByMonthMap = new Map<string, number>(
+      revenueRows.map((r) => [r.month, r.totalAmount]),
+    );
 
     const revenueByMonth = [
       {

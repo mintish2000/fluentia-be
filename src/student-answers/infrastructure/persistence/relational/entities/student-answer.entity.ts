@@ -9,6 +9,8 @@ import {
   UpdateDateColumn,
   ManyToOne,
   Column,
+  Index,
+  JoinColumn,
 } from 'typeorm';
 import { EntityRelationalHelper } from '../../../../../utils/relational-entity-helper';
 
@@ -34,7 +36,12 @@ export class StudentAnswerEntity extends EntityRelationalHelper {
   })
   answer: string;
 
-  @ManyToOne(() => PlacementEntity, { eager: true, nullable: false })
+  @Index()
+  @Column({ nullable: false, type: 'uuid', insert: false, update: false })
+  placementId: string;
+
+  @ManyToOne(() => PlacementEntity, { eager: false, nullable: false })
+  @JoinColumn({ name: 'placementId' })
   placement: PlacementEntity;
 
   @Column({
@@ -43,7 +50,12 @@ export class StudentAnswerEntity extends EntityRelationalHelper {
   })
   questionId: string;
 
-  @ManyToOne(() => UserEntity, { eager: true, nullable: false })
+  @Index()
+  @Column({ nullable: false, type: 'integer', insert: false, update: false })
+  studentId: number;
+
+  @ManyToOne(() => UserEntity, { eager: false, nullable: false })
+  @JoinColumn({ name: 'studentId' })
   student: UserEntity;
 
   @PrimaryGeneratedColumn('uuid')

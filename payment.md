@@ -1,225 +1,173 @@
-# Payments — frontend integration
+# Payment API — Backend Contract
 
-How the backend models **student payments** (no course enrollment row). Base URL and headers match [`FRONTEND_API.md`](./FRONTEND_API.md): `{base} = /api/v1`, JSON bodies, `Authorization: Bearer <access_token>` where required.
-
-For **generated DTO schemas**, use Swagger at `GET /docs` (`Payments` tag).
-
----
-
-## Concepts
-
-| Topic | Behavior |
-|--------|----------|
-| **Who owns a payment** | Each row links to a **student** user (`student` relation). |
-| **Statuses** | String values; common set is in `PaymentStatusEnum`: `pending`, `paid`, `failed`, `refunded` (see `src/payments/payment-status.enum.ts`). |
-| **Currency** | Stored uppercase (`USD`, …). |
-| **Provider reference** | Optional string (e.g. Stripe charge or session id) for reconciliation. |
-| **Student “my” APIs** | `POST /payments/my` and `GET /payments/my` use the **JWT subject** as the student; no `studentId` in the body. |
+This document describes the three endpoints the backend must expose to support the PayPal checkout flow.  
+The frontend never touches the PayPal secret key — all PayPal server-to-server calls are made here.
 
 ---
 
-## 1. Student app — hub summary (read-only)
+## Flow overview
 
-**`GET /student/hub`**
+```
+User clicks "Buy Now"
+  │
+  ▼
+POST /payments/orders           ← frontend asks backend to create a PayPal order
+  │  backend calls PayPal API with secret key
+  │  returns { orderId }
+  │
+  ▼
+PayPal Smart Button shown to user
+  │  user approves in PayPal popup
+  │
+  ▼
+POST /payments/orders/:orderId/capture   ← frontend asks backend to capture
+  │  backend calls PayPal API with secret key
+  │  verifies captured amount matches plan price
+  │  returns { providerReference, amount, currency }
+  │
+  ▼
+POST /payments/my               ← frontend records the payment in your DB
+  │  sends { providerReference, amount, currency }
+  │  returns the saved Payment object
+  ▼
+Done — student subscription activated
+```
 
-- **Auth:** Bearer access token **and** role **student** (`RolesGuard`).
-- **Use:** Home / dashboard summary: placement, group, **payments** (trimmed), and next-payment hints.
+---
 
-**Response (excerpt)**
+## 1. Create PayPal Order
+
+**`POST /api/v1/payments/orders`**  
+Protected: yes (authenticated student)
+
+### Request body
 
 ```json
 {
-  "placementCompleted": true,
-  "placement": { "score": 84, "totalQuestions": 50, "correctAnswers": 42, "submittedAt": "2026-04-05T08:30:00.000Z" },
-  "group": { "id": "g_001", "name": "Morning Advanced", "description": "...", "link": "https://..." },
-  "payments": [
-    {
-      "id": "054c9db7-36ac-4c98-ae69-66a47aab6929",
-      "amount": 120,
-      "currency": "USD",
-      "paidAt": "2026-03-02T09:00:00.000Z",
-      "status": "paid"
-    }
-  ],
-  "nextPaymentDate": "2026-05-02T09:00:00.000Z",
-  "nextPaymentAmount": 120,
-  "nextPaymentCurrency": "USD"
+  "planId": "group-1m"
 }
 ```
 
-`payments[]` here is a **subset** of fields (no nested `student` object). For full rows and pagination, use **`GET /payments/my`** below.
+| Field    | Type   | Description                                      |
+|----------|--------|--------------------------------------------------|
+| `planId` | string | One of the pricing plan identifiers (e.g. `group-1m`, `group-3m`, `group-6m`) |
 
----
+### What the backend should do
 
-## 2. Student — record a payment (`POST /payments/my`)
+1. Validate `planId` against your plan catalogue and resolve the `amount` + `currency`.
+2. Call PayPal Orders API **server-to-server**:
+   ```
+   POST https://api-m.paypal.com/v2/checkout/orders
+   Authorization: Bearer <access_token_from_secret>
+   ```
+   Body:
+   ```json
+   {
+     "intent": "CAPTURE",
+     "purchase_units": [{
+       "amount": { "currency_code": "USD", "value": "100.00" },
+       "description": "Group English Classes – 1 Month",
+       "custom_id": "group-1m"
+     }]
+   }
+   ```
+3. Return the PayPal order ID to the frontend.
 
-Call this **after** your payment provider confirms success (e.g. Stripe webhook handled on the server, or client-side confirmation where your product allows it). The backend persists a **`paid`** row for the authenticated user.
-
-**Request**
-
-```http
-POST /api/v1/payments/my
-Content-Type: application/json
-Authorization: Bearer <access_token>
-```
+### Response `200 OK`
 
 ```json
 {
-  "amount": 99.99,
-  "currency": "USD",
-  "providerReference": "ch_3QwYvY2eZvKYlo2C1x2y3z4A"
+  "orderId": "5O190127TN364715T"
 }
 ```
 
-| Field | Required | Notes |
-|--------|----------|--------|
-| `amount` | Yes | Number. |
-| `currency` | Yes | Non-empty string; stored uppercase. |
-| `providerReference` | No | Payment intent / charge / session id from the provider. |
+### Error responses
 
-**Behavior**
-
-- Server sets **`status`** to **`paid`**.
-- **`paidAt`** defaults to **now** if not supplied elsewhere in the service path.
-
-**Response `201`**
-
-Payment object (see [Payment shape](#5-payment-object-shape)).
-
-**Errors**
-
-| Status | Typical cause |
-|--------|----------------|
-| `401` | Missing or invalid JWT. |
-| `422` | Validation failure (DTO). Body may include `errors: { student: 'notExists' }` if the user id is invalid in edge cases. |
+| Status | When |
+|--------|------|
+| `400`  | Unknown or invalid `planId` |
+| `401`  | Unauthenticated request |
+| `502`  | PayPal API call failed |
 
 ---
 
-## 3. Student — list my payments (`GET /payments/my`)
+## 2. Capture PayPal Order
 
-**Request**
+**`POST /api/v1/payments/orders/:orderId/capture`**  
+Protected: yes (authenticated student)
 
-```http
-GET /api/v1/payments/my?page=1&limit=10
-Authorization: Bearer <access_token>
-```
+### URL parameter
 
-| Query | Default | Max |
-|-------|---------|-----|
-| `page` | `1` | — |
-| `limit` | `10` | capped at **50** server-side |
+| Param     | Description                              |
+|-----------|------------------------------------------|
+| `orderId` | The PayPal order ID returned in step 1   |
 
-**Response `200`** — infinity-style pagination:
+### No request body
+
+### What the backend should do
+
+1. Call PayPal Orders API **server-to-server**:
+   ```
+   POST https://api-m.paypal.com/v2/checkout/orders/{orderId}/capture
+   Authorization: Bearer <access_token_from_secret>
+   ```
+2. Read the capture result and extract:
+   - `purchase_units[0].payments.captures[0].id` → `providerReference`
+   - `purchase_units[0].payments.captures[0].amount.value` → `amount`
+   - `purchase_units[0].payments.captures[0].amount.currency_code` → `currency`
+3. **Verify** the captured `amount` matches the expected plan price (prevents price-tampering).
+4. Return the confirmed values to the frontend.
+
+### Response `200 OK`
 
 ```json
 {
-  "data": [
-    {
-      "id": "054c9db7-36ac-4c98-ae69-66a47aab6929",
-      "paidAt": "2026-03-02T09:00:00.000Z",
-      "providerReference": "ch_...",
-      "status": "paid",
-      "currency": "USD",
-      "amount": 120,
-      "student": {
-        "id": 42,
-        "email": "student@example.com",
-        "firstName": "Lina",
-        "lastName": "Khaled"
-      },
-      "createdAt": "2026-03-02T09:00:01.000Z",
-      "updatedAt": "2026-03-02T09:00:01.000Z"
-    }
-  ],
-  "hasNextPage": false
+  "providerReference": "3C679366HH908081L",
+  "amount": 100,
+  "currency": "USD"
 }
 ```
 
-List is ordered by **`createdAt` descending** (newest first) for the current student.
+### Error responses
+
+| Status | When |
+|--------|------|
+| `400`  | Order not found or already captured |
+| `401`  | Unauthenticated request |
+| `422`  | Captured amount does not match expected plan price |
+| `502`  | PayPal API call failed |
 
 ---
 
-## 4. Admin / back-office — full CRUD (`/payments`)
+## 3. Record Payment (already exists)
 
-All routes use **`AuthGuard('jwt')`** on the controller. **Wire your admin UI** to only call these from trusted staff contexts; do not expose generic “list all payments” to learners.
+**`POST /api/v1/payments/my`**  
+Protected: yes (authenticated student)
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/payments` | Create a payment for a given `student.id`. |
-| `GET` | `/payments` | Paginated list (`page`, `limit`, same cap as above). |
-| `GET` | `/payments/:id` | One payment by UUID. |
-| `PATCH` | `/payments/:id` | Partial update (`UpdatePaymentDto` — same fields as create, all optional). |
-| `DELETE` | `/payments/:id` | Delete row. |
+Called by the frontend after a successful capture to persist the payment record.  
+No backend changes required for this endpoint.
 
-### `POST /payments` (admin)
+### Request body
 
 ```json
 {
-  "student": { "id": 42 },
-  "amount": 120,
-  "currency": "USD",
-  "status": "paid",
-  "providerReference": "manual-2026-04",
-  "paidAt": "2026-04-01T00:00:00.000Z"
+  "providerReference": "3C679366HH908081L",
+  "amount": 100,
+  "currency": "USD"
 }
 ```
 
-- **`student.id`**: numeric user id of the student (matches `UserDto`).
-- **`status`**, **`currency`**, **`amount`**: required on create per `CreatePaymentDto`.
-- **`paidAt`**: optional; defaults to **now** if omitted.
+### Response `201 Created`
 
-**422** if `student` user does not exist: `errors: { student: 'notExists' }`.
+Returns the saved `Payment` object.
 
 ---
 
-## 5. Payment object shape
+## Security checklist
 
-Fields returned by create/update/find (domain `Payment`):
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `id` | string (uuid) | Primary key. |
-| `amount` | number | |
-| `currency` | string | Uppercase in DB. |
-| `status` | string | e.g. `paid`, `pending`, … |
-| `paidAt` | string \| null | ISO date when paid (nullable). |
-| `providerReference` | string \| null | |
-| `student` | object | Nested user (serialized `User` domain object). |
-| `createdAt` | string | |
-| `updatedAt` | string | |
-
-Exact nested `student` fields depend on serialization and Swagger; use **`GET /docs`** for the live schema.
-
----
-
-## 6. Suggested client flows
-
-### A. Checkout then persist (typical)
-
-1. User completes payment in **Stripe** (or another PSP) via your frontend or hosted page.
-2. On success, your **backend** or **client** obtains a stable id (`payment_intent`, `charge`, etc.).
-3. Client calls **`POST /payments/my`** with `amount`, `currency`, and `providerReference`.
-4. Student history uses **`GET /payments/my`**; dashboard summary can use **`GET /student/hub`** for a lighter payload.
-
-### B. Admin enters cash / bank transfer
-
-Admin uses **`POST /payments`** with `student: { id }`, `status: "paid"`, and optional `providerReference` / `paidAt`.
-
----
-
-## 7. Errors reference
-
-| Status | Meaning |
-|--------|---------|
-| `401` | Unauthenticated. |
-| `403` | Wrong role for **`/student/hub`** (requires **student**). |
-| `404` | **`/student/hub`** if the user is not a student record (structured `error` payload in admin style). |
-| `422` | Validation (`class-validator`) or business rule (`errors.student: 'notExists'`). |
-
----
-
-## Related
-
-- [`FRONTEND_API.md`](./FRONTEND_API.md) — auth, base URL, global error shapes.
-- `docs/student hub/student-hub.json` — example hub JSON.
-- Swagger: `GET /docs` — `Payments`, `Student`.
+- [ ] PayPal **Client Secret** is stored only in backend environment variables — never sent to the browser.
+- [ ] **Rotate** the sandbox secret at https://developer.paypal.com (it was previously exposed in frontend source).
+- [ ] **Rotate** the live secret on the PayPal dashboard.
+- [ ] Capture endpoint verifies the PayPal-confirmed amount against your plan catalogue before saving.
+- [ ] All three endpoints require an authenticated session (`Authorization: Bearer <jwt>`).
+- [ ] Use PayPal **sandbox** credentials for development and **live** credentials for production — never mix them.

@@ -1,14 +1,17 @@
 import {
-  Controller,
-  Get,
-  Post,
+  BadRequestException,
   Body,
-  Patch,
-  Param,
+  Controller,
   Delete,
-  UseGuards,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
   Query,
   Request,
+  UseGuards,
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
@@ -30,6 +33,12 @@ import { infinityPagination } from '../utils/infinity-pagination';
 import { FindAllPaymentsDto } from './dto/find-all-payments.dto';
 import { CreateMyPaymentDto } from './dto/create-my-payment.dto';
 import { PaymentStatusEnum } from './payment-status.enum';
+import { PaypalService } from './paypal.service';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { PLAN_CATALOGUE } from './plans.catalogue';
+import { RolesGuard } from '../roles/roles.guard';
+import { Roles } from '../roles/roles.decorator';
+import { RoleEnum } from '../roles/roles.enum';
 
 @ApiTags('Payments')
 @ApiBearerAuth()
@@ -39,9 +48,57 @@ import { PaymentStatusEnum } from './payment-status.enum';
   version: '1',
 })
 export class PaymentsController {
-  constructor(private readonly paymentsService: PaymentsService) {}
+  constructor(
+    private readonly paymentsService: PaymentsService,
+    private readonly paypalService: PaypalService,
+  ) {}
+
+  @Post('orders')
+  @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      properties: { orderId: { type: 'string' } },
+    },
+  })
+  async createPaypalOrder(
+    @Body() createOrderDto: CreateOrderDto,
+  ): Promise<{ orderId: string }> {
+    const plan =
+      PLAN_CATALOGUE[createOrderDto.planId as keyof typeof PLAN_CATALOGUE];
+    if (!plan) {
+      throw new BadRequestException(`Unknown planId: ${createOrderDto.planId}`);
+    }
+    const orderId = await this.paypalService.createOrder(
+      createOrderDto.planId as keyof typeof PLAN_CATALOGUE,
+      plan,
+    );
+    return { orderId };
+  }
+
+  @Post('orders/:orderId/capture')
+  @HttpCode(HttpStatus.OK)
+  @ApiParam({ name: 'orderId', type: String, required: true })
+  @ApiOkResponse({
+    type: Payment,
+  })
+  async capturePaypalOrder(
+    @Param('orderId') orderId: string,
+    @Request() request,
+  ): Promise<Payment> {
+    const captured = await this.paypalService.captureOrderById(orderId);
+    return this.paymentsService.createForStudent(request.user.id, {
+      amount: captured.amount,
+      currency: captured.currency,
+      status: PaymentStatusEnum.paid,
+      providerReference: captured.providerReference,
+      planKey: captured.planKey,
+    });
+  }
 
   @Post()
+  @UseGuards(RolesGuard)
+  @Roles(RoleEnum.admin)
   @ApiCreatedResponse({
     type: Payment,
   })
@@ -57,15 +114,22 @@ export class PaymentsController {
     @Request() request,
     @Body() createMyPaymentDto: CreateMyPaymentDto,
   ) {
+    if (!createMyPaymentDto.providerReference) {
+      throw new BadRequestException(
+        'providerReference is required to record a payment',
+      );
+    }
     return this.paymentsService.createForStudent(request.user.id, {
       amount: createMyPaymentDto.amount,
       currency: createMyPaymentDto.currency,
       status: PaymentStatusEnum.paid,
-      providerReference: createMyPaymentDto.providerReference ?? null,
+      providerReference: createMyPaymentDto.providerReference,
     });
   }
 
   @Get()
+  @UseGuards(RolesGuard)
+  @Roles(RoleEnum.admin)
   @ApiOkResponse({
     type: InfinityPaginationResponse(Payment),
   })
@@ -113,6 +177,8 @@ export class PaymentsController {
   }
 
   @Get(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleEnum.admin)
   @ApiParam({
     name: 'id',
     type: String,
@@ -126,6 +192,8 @@ export class PaymentsController {
   }
 
   @Patch(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleEnum.admin)
   @ApiParam({
     name: 'id',
     type: String,
@@ -139,12 +207,15 @@ export class PaymentsController {
   }
 
   @Delete(':id')
+  @UseGuards(RolesGuard)
+  @Roles(RoleEnum.admin)
+  @HttpCode(HttpStatus.NO_CONTENT)
   @ApiParam({
     name: 'id',
     type: String,
     required: true,
   })
-  remove(@Param('id') id: string) {
-    return this.paymentsService.remove(id);
+  async remove(@Param('id') id: string): Promise<void> {
+    await this.paymentsService.remove(id);
   }
 }
