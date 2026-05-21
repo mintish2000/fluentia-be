@@ -6,7 +6,7 @@ export interface PlanDetails {
 
 export const PLAN_CATALOGUE: Record<string, PlanDetails> = {
   'group-1m': {
-    amount: 1,
+    amount: 100,
     currency: 'USD',
     description: 'Fluentia — Group classes (1 month)',
   },
@@ -31,7 +31,7 @@ export const PLAN_CATALOGUE: Record<string, PlanDetails> = {
     description: 'Fluentia — Group classes (12 months)',
   },
   'private-30-1': {
-    amount: 1,
+    amount: 20,
     currency: 'USD',
     description: 'Fluentia — Private 30 min (1 session)',
   },
