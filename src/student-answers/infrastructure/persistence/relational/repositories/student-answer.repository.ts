@@ -16,7 +16,7 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
   ) {}
 
   async create(data: StudentAnswer): Promise<StudentAnswer> {
-    const persistenceModel = StudentAnswerMapper.toPersistence(data);
+    const persistenceModel = this.toPersistenceWithRequiredForeignKeys(data);
     const newEntity = await this.studentAnswerRepository.save(
       this.studentAnswerRepository.create(persistenceModel),
     );
@@ -25,7 +25,9 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
 
   async createMany(data: StudentAnswer[]): Promise<StudentAnswer[]> {
     const persistenceModels = data.map((d) =>
-      this.studentAnswerRepository.create(StudentAnswerMapper.toPersistence(d)),
+      this.studentAnswerRepository.create(
+        this.toPersistenceWithRequiredForeignKeys(d),
+      ),
     );
     const saved = await this.studentAnswerRepository.save(persistenceModels);
     return saved.map((e) => StudentAnswerMapper.toDomain(e));
@@ -164,5 +166,21 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
 
   async remove(id: StudentAnswer['id']): Promise<void> {
     await this.studentAnswerRepository.delete(id);
+  }
+
+  private toPersistenceWithRequiredForeignKeys(
+    data: StudentAnswer,
+  ): StudentAnswerEntity {
+    const persistence = StudentAnswerMapper.toPersistence(data);
+
+    if (!persistence.placementId) {
+      throw new Error('student_answer requires placementId before save');
+    }
+
+    if (persistence.studentId === undefined || persistence.studentId === null) {
+      throw new Error('student_answer requires studentId before save');
+    }
+
+    return persistence;
   }
 }

@@ -68,8 +68,10 @@ export class StudentAnswersService {
       isCorrect: createStudentAnswerDto.isCorrect,
       answer: createStudentAnswerDto.answer,
       placement,
+      placementId: placement.id,
       questionId: question.id,
       student,
+      studentId: Number(student.id),
     });
   }
 
@@ -138,10 +140,12 @@ export class StudentAnswersService {
       isCorrect: updateStudentAnswerDto.isCorrect,
       answer: updateStudentAnswerDto.answer,
       placement,
+      ...(placement ? { placementId: placement.id } : {}),
       ...(updateStudentAnswerDto.questionId !== undefined
         ? { questionId: updateStudentAnswerDto.questionId }
         : {}),
       student,
+      ...(student ? { studentId: Number(student.id) } : {}),
     });
   }
 
