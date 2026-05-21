@@ -41,9 +41,11 @@ export abstract class PaymentRepository {
   /**
    * Revenue aggregated by month (YYYY-MM) — avoids loading every payment row.
    */
-  abstract getRevenueGroupedByMonth(): Promise<
-    Array<{ month: string; totalAmount: number }>
-  >;
+  abstract getRevenueGroupedByMonth(filters?: {
+    from?: Date;
+    to?: Date;
+    status?: string;
+  }): Promise<Array<{ month: string; totalAmount: number }>>;
 
   abstract update(
     id: Payment['id'],

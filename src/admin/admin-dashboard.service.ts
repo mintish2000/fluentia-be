@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { UserEntity } from '../users/infrastructure/persistence/relational/entities/user.entity';
@@ -8,6 +8,7 @@ import { StatusEnum } from '../statuses/statuses.enum';
 import { PlacementService } from '../placement/placement.service';
 import { StudentAnswerRepository } from '../student-answers/infrastructure/persistence/student-answer.repository';
 import { PaymentRepository } from '../payments/infrastructure/persistence/payment.repository';
+import { PaymentStatusEnum } from '../payments/payment-status.enum';
 import { toGroupPublicId } from './utils/admin-public-ids.util';
 
 /**
@@ -29,13 +30,28 @@ export class AdminDashboardService {
    * Builds dashboard aggregates for the admin home screen.
    */
   async getDashboard(from?: string, to?: string) {
-    void from;
-    void to;
+    const range = this.parseDateRange(from, to);
 
-    const students = await this.usersRepository.find({
-      where: { role: { id: RoleEnum.student } },
-      relations: ['status', 'group'],
-    });
+    const studentsQuery = this.usersRepository
+      .createQueryBuilder('user')
+      .leftJoinAndSelect('user.status', 'status')
+      .leftJoinAndSelect('user.group', 'group')
+      .leftJoin('user.role', 'role')
+      .where('role.id = :roleId', { roleId: RoleEnum.student });
+
+    if (range.from) {
+      studentsQuery.andWhere('user.createdAt >= :from', {
+        from: range.from,
+      });
+    }
+
+    if (range.to) {
+      studentsQuery.andWhere('user.createdAt <= :to', {
+        to: range.to,
+      });
+    }
+
+    const students = await studentsQuery.getMany();
 
     const totalStudents = students.length;
     const activeStudents = students.filter(
@@ -60,6 +76,7 @@ export class AdminDashboardService {
       const scoreSummary =
         await this.studentAnswerRepository.getPlacementScoreSummary(
           activePlacement.id,
+          range,
         );
       const scores: number[] = [];
       for (const { total, correct } of scoreSummary) {
@@ -134,18 +151,28 @@ export class AdminDashboardService {
       'Dec',
     ];
 
-    const revenueRows = await this.paymentRepository.getRevenueGroupedByMonth();
+    const revenueRows = await this.paymentRepository.getRevenueGroupedByMonth({
+      ...range,
+      status: PaymentStatusEnum.paid,
+    });
     const revenueByMonthMap = new Map<string, number>(
       revenueRows.map((r) => [r.month, r.totalAmount]),
     );
 
-    const revenueByMonth = [
-      {
-        month: monthKey,
-        label: monthLabels[now.getUTCMonth()],
-        amountUsd: revenueByMonthMap.get(monthKey) ?? expectedMonthlyRevenueUsd,
-      },
-    ];
+    const rangeMonthKeys = this.getMonthKeysInRange(range.from, range.to);
+    const targetMonthKeys = rangeMonthKeys.length ? rangeMonthKeys : [monthKey];
+
+    const revenueByMonth = targetMonthKeys.map((key) => {
+      const [, monthRaw] = key.split('-');
+      const monthIndex = Number(monthRaw) - 1;
+      return {
+        month: key,
+        label: monthLabels[monthIndex],
+        amountUsd:
+          revenueByMonthMap.get(key) ??
+          (key === monthKey ? expectedMonthlyRevenueUsd : 0),
+      };
+    });
 
     return {
       meta: {
@@ -179,5 +206,74 @@ export class AdminDashboardService {
       placementScoreDistribution: placementScoreBuckets,
       revenueByMonth,
     };
+  }
+
+  private parseDateRange(
+    from?: string,
+    to?: string,
+  ): {
+    from?: Date;
+    to?: Date;
+  } {
+    const parsedFrom = from ? this.parseDateBoundary(from, 'start') : undefined;
+    const parsedTo = to ? this.parseDateBoundary(to, 'end') : undefined;
+
+    if (parsedFrom && parsedTo && parsedFrom > parsedTo) {
+      throw new BadRequestException('`from` must be before or equal to `to`.');
+    }
+
+    return { from: parsedFrom, to: parsedTo };
+  }
+
+  private parseDateBoundary(value: string, boundary: 'start' | 'end'): Date {
+    const trimmed = value.trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+      throw new BadRequestException(
+        `Invalid date \"${value}\". Use YYYY-MM-DD format.`,
+      );
+    }
+
+    const [yearRaw, monthRaw, dayRaw] = trimmed.split('-');
+    const year = Number(yearRaw);
+    const month = Number(monthRaw);
+    const day = Number(dayRaw);
+    const date =
+      boundary === 'start'
+        ? new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0))
+        : new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+
+    if (
+      Number.isNaN(date.getTime()) ||
+      date.getUTCFullYear() !== year ||
+      date.getUTCMonth() + 1 !== month ||
+      date.getUTCDate() !== day
+    ) {
+      throw new BadRequestException(
+        `Invalid date \"${value}\". Use a valid calendar date.`,
+      );
+    }
+
+    return date;
+  }
+
+  private getMonthKeysInRange(from?: Date, to?: Date): string[] {
+    if (!from || !to) {
+      return [];
+    }
+
+    const keys: string[] = [];
+    const cursor = new Date(
+      Date.UTC(from.getUTCFullYear(), from.getUTCMonth(), 1),
+    );
+    const end = new Date(Date.UTC(to.getUTCFullYear(), to.getUTCMonth(), 1));
+
+    while (cursor <= end) {
+      keys.push(
+        `${cursor.getUTCFullYear()}-${String(cursor.getUTCMonth() + 1).padStart(2, '0')}`,
+      );
+      cursor.setUTCMonth(cursor.getUTCMonth() + 1);
+    }
+
+    return keys;
   }
 }

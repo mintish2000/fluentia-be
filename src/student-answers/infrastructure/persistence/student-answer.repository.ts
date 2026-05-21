@@ -39,6 +39,10 @@ export abstract class StudentAnswerRepository {
    */
   abstract getPlacementScoreSummary(
     placementId: string,
+    filters?: {
+      from?: Date;
+      to?: Date;
+    },
   ): Promise<Array<{ studentId: number; total: number; correct: number }>>;
 
   abstract getAttemptSummaryByPlacementIdAndStudentId(

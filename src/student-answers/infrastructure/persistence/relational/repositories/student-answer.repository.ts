@@ -83,8 +83,12 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
 
   async getPlacementScoreSummary(
     placementId: string,
+    filters?: {
+      from?: Date;
+      to?: Date;
+    },
   ): Promise<Array<{ studentId: number; total: number; correct: number }>> {
-    const rows = await this.studentAnswerRepository
+    const query = this.studentAnswerRepository
       .createQueryBuilder('sa')
       .select('sa.studentId', 'studentId')
       .addSelect('COUNT(*)', 'total')
@@ -93,8 +97,21 @@ export class StudentAnswerRelationalRepository implements StudentAnswerRepositor
         'correct',
       )
       .where('sa.placementId = :placementId', { placementId })
-      .groupBy('sa.studentId')
-      .getRawMany<{ studentId: string; total: string; correct: string }>();
+      .groupBy('sa.studentId');
+
+    if (filters?.from) {
+      query.andWhere('sa.submittedAt >= :from', { from: filters.from });
+    }
+
+    if (filters?.to) {
+      query.andWhere('sa.submittedAt <= :to', { to: filters.to });
+    }
+
+    const rows = await query.getRawMany<{
+      studentId: string;
+      total: string;
+      correct: string;
+    }>();
 
     return rows.map((r) => ({
       studentId: Number(r.studentId),

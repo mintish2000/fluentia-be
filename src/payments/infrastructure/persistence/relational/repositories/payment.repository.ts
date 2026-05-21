@@ -101,17 +101,35 @@ export class PaymentRelationalRepository implements PaymentRepository {
     return entities.map((entity) => PaymentMapper.toDomain(entity));
   }
 
-  async getRevenueGroupedByMonth(): Promise<
-    Array<{ month: string; totalAmount: number }>
-  > {
-    const rows = await this.paymentRepository
+  async getRevenueGroupedByMonth(filters?: {
+    from?: Date;
+    to?: Date;
+    status?: string;
+  }): Promise<Array<{ month: string; totalAmount: number }>> {
+    const query = this.paymentRepository
       .createQueryBuilder('p')
       .select("TO_CHAR(p.paidAt, 'YYYY-MM')", 'month')
       .addSelect('SUM(p.amount)', 'totalAmount')
       .where('p.paidAt IS NOT NULL')
       .groupBy("TO_CHAR(p.paidAt, 'YYYY-MM')")
-      .orderBy('month', 'ASC')
-      .getRawMany<{ month: string; totalAmount: string }>();
+      .orderBy('month', 'ASC');
+
+    if (filters?.from) {
+      query.andWhere('p.paidAt >= :from', { from: filters.from });
+    }
+
+    if (filters?.to) {
+      query.andWhere('p.paidAt <= :to', { to: filters.to });
+    }
+
+    if (filters?.status) {
+      query.andWhere('p.status = :status', { status: filters.status });
+    }
+
+    const rows = await query.getRawMany<{
+      month: string;
+      totalAmount: string;
+    }>();
 
     return rows.map((r) => ({
       month: r.month,
