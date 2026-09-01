@@ -31,33 +31,48 @@ export const PLAN_CATALOGUE: Record<string, PlanDetails> = {
     description: 'Fluentia — Group classes (12 months)',
   },
   'private-30-1': {
-    amount: 20,
+    amount: 15,
     currency: 'USD',
     description: 'Fluentia — Private 30 min (1 session)',
   },
   'private-30-4': {
-    amount: 70,
+    amount: 52,
     currency: 'USD',
     description: 'Fluentia — Private 30 min (4 sessions)',
   },
   'private-30-8': {
-    amount: 150,
+    amount: 96,
     currency: 'USD',
     description: 'Fluentia — Private 30 min (8 sessions)',
   },
+  'private-30-12': {
+    amount: 132,
+    currency: 'USD',
+    description: 'Fluentia — Private 30 min (12 sessions)',
+  },
+  'private-30-16': {
+    amount: 168,
+    currency: 'USD',
+    description: 'Fluentia — Private 30 min (16 sessions)',
+  },
   'private-60-1': {
-    amount: 35,
+    amount: 25,
     currency: 'USD',
     description: 'Fluentia — Private 60 min (1 session)',
   },
   'private-60-4': {
-    amount: 130,
+    amount: 90,
     currency: 'USD',
     description: 'Fluentia — Private 60 min (4 sessions)',
   },
   'private-60-8': {
-    amount: 270,
+    amount: 170,
     currency: 'USD',
     description: 'Fluentia — Private 60 min (8 sessions)',
+  },
+  'private-60-12': {
+    amount: 240,
+    currency: 'USD',
+    description: 'Fluentia — Private 60 min (12 sessions)',
   },
 };

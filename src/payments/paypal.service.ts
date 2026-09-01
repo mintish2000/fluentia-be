@@ -14,11 +14,15 @@ export class PaypalService {
   private readonly clientSecret: string;
 
   constructor(private readonly configService: ConfigService) {
-    this.clientId = this.configService.getOrThrow<string>('PAYPAL_CLIENT_ID');
-    this.clientSecret = this.configService.getOrThrow<string>(
-      'PAYPAL_CLIENT_SECRET',
-    );
-    const mode = this.configService.get<string>('PAYPAL_MODE', 'sandbox');
+    this.clientId = this.configService.getOrThrow('PAYPAL_CLIENT_ID', {
+      infer: true,
+    });
+    this.clientSecret = this.configService.getOrThrow('PAYPAL_CLIENT_SECRET', {
+      infer: true,
+    });
+    const mode = this.configService.get('PAYPAL_MODE', 'sandbox', {
+      infer: true,
+    });
     this.baseUrl =
       mode === 'live'
         ? 'https://api-m.paypal.com'
