@@ -5,6 +5,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { AllConfigType } from '../config/config.type';
 import { PlanDetails, PLAN_CATALOGUE } from './plans.catalogue';
 
 @Injectable()
@@ -13,16 +14,14 @@ export class PaypalService {
   private readonly clientId: string;
   private readonly clientSecret: string;
 
-  constructor(private readonly configService: ConfigService) {
-    this.clientId = this.configService.getOrThrow('PAYPAL_CLIENT_ID', {
+  constructor(private readonly configService: ConfigService<AllConfigType>) {
+    this.clientId = this.configService.getOrThrow('paypal.clientId', {
       infer: true,
     });
-    this.clientSecret = this.configService.getOrThrow('PAYPAL_CLIENT_SECRET', {
+    this.clientSecret = this.configService.getOrThrow('paypal.clientSecret', {
       infer: true,
     });
-    const mode = this.configService.get('PAYPAL_MODE', 'sandbox', {
-      infer: true,
-    });
+    const mode = this.configService.getOrThrow('paypal.mode', { infer: true });
     this.baseUrl =
       mode === 'live'
         ? 'https://api-m.paypal.com'

@@ -7,6 +7,7 @@ import authConfig from './auth/config/auth.config';
 import appConfig from './config/app.config';
 import mailConfig from './mail/config/mail.config';
 import fileConfig from './files/config/file.config';
+import paypalConfig from './payments/config/paypal.config';
 import path from 'path';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
@@ -44,7 +45,14 @@ import { StudentHubModule } from './student-hub/student-hub.module';
     PlacementModule,
     ConfigModule.forRoot({
       isGlobal: true,
-      load: [databaseConfig, authConfig, appConfig, mailConfig, fileConfig],
+      load: [
+        databaseConfig,
+        authConfig,
+        appConfig,
+        mailConfig,
+        fileConfig,
+        paypalConfig,
+      ],
       envFilePath: ['.env'],
     }),
     infrastructureDatabaseModule,
