@@ -75,4 +75,9 @@ export const PLAN_CATALOGUE: Record<string, PlanDetails> = {
     currency: 'USD',
     description: 'Fluentia — Private 60 min (12 sessions)',
   },
+  'private-60-16': {
+    amount: 300,
+    currency: 'USD',
+    description: 'Fluentia — Private 60 min (16 sessions)',
+  },
 };
